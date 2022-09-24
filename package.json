@@ -9,7 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "node ./build.mjs",
     "test:commonjs": "node ./tests/generate.js",
-    "test:typescript": "ts-node ./tests/generate.ts"
+    "test:typescript": "ts-node ./tests/generate.ts",
+    "postinstall": "npm run build",
   },
   "repository": {
     "type": "git",
