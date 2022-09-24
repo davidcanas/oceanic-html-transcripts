@@ -55,7 +55,7 @@ async function generateTranscript<T extends ReturnTypes>(
     const guildIcon = document.getElementsByClassName(
         'preamble__guild-icon'
     )[0] as HTMLImageElement;
-    guildIcon.src = channel.guild.iconURL ?? staticTypes.defaultPFP;
+    guildIcon.src = channel.guild.dynamicIconURL('png') ?? staticTypes.defaultPFP;
 
     document.getElementById('guildname')!.textContent = channel.guild.name;
     document.getElementById('ticketname')!.textContent = channel.name;
