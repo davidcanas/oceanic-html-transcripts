@@ -44,7 +44,7 @@ async function generateTranscript<T extends ReturnTypes>(
         link.setAttribute('rel', 'stylesheet');
         link.setAttribute(
             'href',
-            '../dist/template.css'
+            'template.css'
         );
         document.head.appendChild(link);
     }
