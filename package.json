@@ -10,7 +10,7 @@
     "build": "node ./build.mjs",
     "test:commonjs": "node ./tests/generate.js",
     "test:typescript": "ts-node ./tests/generate.ts",
-    "postinstall": "npm run build"
+    "postinstall": "npm install && npm run build"
   },
   "repository": {
     "type": "git",
