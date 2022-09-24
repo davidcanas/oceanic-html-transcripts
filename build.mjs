@@ -30,7 +30,11 @@ if(isWin) {
 
 // build the typescript project with tsc
 console.log(chalk.green(`» Building Typescript project...`));
-await $`tsc`;
+try {
+  await $`tsc`;
+} catch(err) {
+  console.log(chalk.red(`[!] Error building Typescript project: ${err.message}`));
+}
 
 // copy the template file to the dist folder
 console.log(chalk.green(`» Copying template file...`));
