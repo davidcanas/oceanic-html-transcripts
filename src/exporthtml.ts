@@ -140,7 +140,7 @@ async function generateTranscript<T extends ReturnTypes>(
                 <span class="chatlog__reference-name" title="${author.username.replace(
                     /"/g,
                     ''
-                )}" style="color: ${author.accentColor ?? '#FFFFFF'}">${
+                )}" style="color: ${referencedMessage?.member?.roles.length ? <string> intColorToHex((<userDiscord.GuildTextableChannel> message.channel).guild!.roles.get(referencedMessage?.member?.roles[referencedMessage?.member?.roles.length - 1])?.color) : `#ffffff`}">${
                         author.bot
                             ? `<span class="chatlog__bot-tag">BOT</span> ${he.escape(
                                     author.username
@@ -197,7 +197,7 @@ async function generateTranscript<T extends ReturnTypes>(
         authorName.textContent = author.username;
         authorName.setAttribute('data-user-id', author.id);
         authorName.style.color =
-            intColorToHex(message.member?.accentColor) ?? `#ffffff`;
+            message.member?.roles.length ? <string> intColorToHex((<userDiscord.GuildTextableChannel> message.channel).guild!.roles.get(message.member?.roles[message.member?.roles.length - 1])?.color) : `#ffffff`;
 
         content.appendChild(authorName);
 
