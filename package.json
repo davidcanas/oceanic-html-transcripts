@@ -1,9 +1,9 @@
 {
-  "name": "discord-html-transcripts",
+  "name": "eris-html-transcripts",
   "version": "2.6.1",
-  "description": "A nicely formatted html transcript generator for discord.js.",
+  "description": "A nicely formatted html transcript generator for eris.",
   "main": "dist/index.js",
-  "homepage": "https://github.com/ItzDerock/discord-html-transcripts",
+  "homepage": "https://github.com/5antos/eris-html-transcripts",
   "types": "./dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -13,12 +13,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ItzDerock/discord-html-transcripts.git"
+    "url": "git+https://github.com/5antos/eris-html-transcripts.git"
   },
   "keywords": [
-    "discord.js",
-    "discord.js-transcripts",
-    "discord.js-html-transcripts",
+    "eris",
+    "eris-transcripts",
+    "eris-html-transcripts",
     "html-transcripts",
     "discord-html-transcripts"
   ],
@@ -43,9 +43,7 @@
     "@types/jsdom": "^16.2.14",
     "@types/twemoji-parser": "^13.1.1",
     "clean-css": "^5.3.1",
-    "discord.js": "^14.0.3",
-    "discord.js-13": "npm:discord.js@^13.9.0",
-    "discord.js-14": "npm:discord.js@^14.0.3",
+    "eris": "^0.17.1",
     "ts-node": "^10.9.1",
     "typescript": "^4.7.4",
     "zx": "^7.0.7"

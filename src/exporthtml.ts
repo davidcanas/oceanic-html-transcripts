@@ -1,10 +1,8 @@
-import type * as discordv13 from 'discord.js-13';
-import type * as discordv14 from 'discord.js-14';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as he from 'he';
 import * as staticTypes from './static';
-import * as userDiscord from 'discord.js';
+import * as userDiscord from 'eris';
 import { minify } from 'html-minifier';
 import { parse as emoji } from 'twemoji-parser';
 import { JSDOM } from 'jsdom';
@@ -12,56 +10,28 @@ import hljs from 'highlight.js';
 
 import {
     internalGenerateOptions,
-    ObjectType,
     ReturnTypes,
     Class,
 } from './types';
 
-import { downloadImageToDataURL } from './utils';
+import { downloadImageToDataURL, intColorToHex } from './utils';
 const template = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8').replace('{{staticTypes.timestampShort}}', JSON.stringify(staticTypes.timestampShort));
 
 const version = require('../package.json').version;
-const isDJSv14 = userDiscord.version.startsWith('14');
 
-const Attachment = (
-    isDJSv14
-        ? // @ts-ignore
-          userDiscord.AttachmentBuilder
-        : // @ts-ignore
-          userDiscord.MessageAttachment
-) as Class<discordv14.AttachmentBuilder | discordv13.MessageAttachment>;
-
-if (!process.env.HIDE_TRANSCRIPT_WARNINGS && !isDJSv14)
-    console.log(
-        '[WARN] discord-html-transcripts will no longer support v13 in a later release, please update to v14.'
-    );
 // because of needing to support v13/14, you may seem some weird typescript "hacks"
 
 async function generateTranscript<T extends ReturnTypes>(
     messages: userDiscord.Message[],
-    inputChannel: userDiscord.TextBasedChannel,
+    inputChannel: userDiscord.TextChannel,
     opts: internalGenerateOptions = {
         returnType: 'buffer' as T,
         fileName: 'transcript.html',
     }
-): Promise<ObjectType<T>> {
-    const channelTemp = inputChannel as
-        | discordv13.TextBasedChannel
-        | discordv14.TextBasedChannel;
+): Promise<({ name: string | undefined, file: Buffer })> {
+    const channelTemp = inputChannel as userDiscord.TextChannel
 
-    if (
-        (isDJSv14
-            ? channelTemp.type === 1 // djs v14 uses 1 for dm
-            : channelTemp.type === 'DM') ||
-        (typeof inputChannel.isThread === 'function' && inputChannel.isThread())
-    )
-        throw new Error('Cannot operate on DM channels or thread channels');
-
-    const channel = inputChannel as
-        | discordv13.NewsChannel
-        | discordv13.TextChannel
-        | discordv14.NewsChannel
-        | discordv14.TextChannel;
+    const channel = inputChannel as userDiscord.TextChannel;
 
     const dom = new JSDOM(template.replace('{{TITLE}}', channel.name));
     const document = dom.window.document;
@@ -74,7 +44,7 @@ async function generateTranscript<T extends ReturnTypes>(
         link.setAttribute('rel', 'stylesheet');
         link.setAttribute(
             'href',
-            'https://cdn.jsdelivr.net/npm/discord-html-transcripts@' +
+            'https://cdn.jsdelivr.net/npm/eris-html-transcripts@' +
                 (version ?? 'latest') +
                 '/dist/template.css'
         );
@@ -85,7 +55,7 @@ async function generateTranscript<T extends ReturnTypes>(
     const guildIcon = document.getElementsByClassName(
         'preamble__guild-icon'
     )[0] as HTMLImageElement;
-    guildIcon.src = channel.guild.iconURL() ?? staticTypes.defaultPFP;
+    guildIcon.src = channel.guild.iconURL ?? staticTypes.defaultPFP;
 
     document.getElementById('guildname')!.textContent = channel.guild.name;
     document.getElementById('ticketname')!.textContent = channel.name;
@@ -102,8 +72,8 @@ async function generateTranscript<T extends ReturnTypes>(
 
     const transcript = document.getElementById('chatlog')!;
 
-    const messagesArray = Array.from(messages.values()).sort(
-        (a, b) => a.createdTimestamp - b.createdTimestamp
+    const messagesArray = messages.sort(
+        (a, b) => a.createdAt - b.createdAt
     );
 
     // pre-download all images
@@ -113,14 +83,14 @@ async function generateTranscript<T extends ReturnTypes>(
     if(opts.saveImages) {
         await Promise.all(
             messagesArray
-                .filter(m => m.attachments.size > 0)
+                .filter(m => m.attachments.length > 0)
                 .map(async m => {
                     const attachments = Array.from(m.attachments.values());
                     for (const attachment of attachments) {
                         // ignore images that are not png/jpg/gif
                         if(
                             !staticTypes.IMAGE_EXTS.includes(
-                                (attachment.name ?? 'unknown.png')
+                                (attachment.filename ?? 'unknown.png')
                                     .split('.')
                                     .pop()?.toLowerCase() ?? ""
                             )
@@ -131,7 +101,7 @@ async function generateTranscript<T extends ReturnTypes>(
                         if (images.has(attachment.id)) continue;
 
                         // download and save
-                        const data = await downloadImageToDataURL(attachment.proxyURL ?? attachment.url);
+                        const data = await downloadImageToDataURL(attachment.proxy_url ?? attachment.url);
                         if(data) images.set(attachment.id, data);
                     }
                 })
@@ -145,7 +115,7 @@ async function generateTranscript<T extends ReturnTypes>(
         messageGroup.classList.add('chatlog__message-group');
 
         // message reference
-        if (message.reference?.messageId) {
+        if (message.referencedMessage) {
             // create symbol
             const referenceSymbol = document.createElement('div');
             referenceSymbol.classList.add('chatlog__reference-symbol');
@@ -156,21 +126,21 @@ async function generateTranscript<T extends ReturnTypes>(
 
             const referencedMessage: userDiscord.Message | null =
                 messages instanceof userDiscord.Collection
-                    ? messages.get(message.reference.messageId)
+                    ? messages.get(message.referencedMessage?.id)
                     : messages.find(
-                            (m) => m.id === message.reference!.messageId
+                            (m) => m.id === message.referencedMessage?.id
                         );
             const author =
-                referencedMessage?.author ?? staticTypes.DummyUser;
+                referencedMessage?.member ?? staticTypes.DummyUser;
 
             reference.innerHTML = (
                 `<img class="chatlog__reference-avatar" src="${
-                        author.avatarURL() ?? staticTypes.defaultPFP
+                        author.avatarURL ?? staticTypes.defaultPFP
                     }" alt="Avatar" loading="lazy">
                 <span class="chatlog__reference-name" title="${author.username.replace(
                     /"/g,
                     ''
-                )}" style="color: ${author.hexAccentColor ?? '#FFFFFF'}">${
+                )}" style="color: ${author.accentColor ?? '#FFFFFF'}">${
                         author.bot
                             ? `<span class="chatlog__bot-tag">BOT</span> ${he.escape(
                                     author.username
@@ -179,7 +149,7 @@ async function generateTranscript<T extends ReturnTypes>(
                     }</span>
                 <div class="chatlog__reference-content">
                     <span class="chatlog__reference-link" onclick="scrollToMessage(event, '${
-                        message.reference.messageId
+                        message.referencedMessage?.id
                     }')">
                             ${
                                 referencedMessage
@@ -209,7 +179,7 @@ async function generateTranscript<T extends ReturnTypes>(
 
         const authorAvatar = document.createElement('img');
         authorAvatar.classList.add('chatlog__author-avatar');
-        authorAvatar.src = author.avatarURL() ?? staticTypes.defaultPFP;
+        authorAvatar.src = author.avatarURL ?? staticTypes.defaultPFP;
         authorAvatar.alt = 'Avatar';
         authorAvatar.loading = 'lazy';
 
@@ -223,34 +193,31 @@ async function generateTranscript<T extends ReturnTypes>(
         // message author name
         const authorName = document.createElement('span');
         authorName.classList.add('chatlog__author-name');
-        authorName.title = he.escape(author.tag);
+        authorName.title = he.escape(author.username + '#' + author.discriminator);
         authorName.textContent = author.username;
         authorName.setAttribute('data-user-id', author.id);
         authorName.style.color =
-            message.member?.displayHexColor ?? `#ffffff`;
+            intColorToHex(message.member?.accentColor) ?? `#ffffff`;
 
         content.appendChild(authorName);
 
         if (author.bot) {
             const botTag = document.createElement('span');
             botTag.classList.add('chatlog__bot-tag');
-            botTag.textContent =
-                (author.flags?.has(65536 /* verified bot flag */)
-                    ? '✔ '
-                    : '') + 'BOT';
+            botTag.textContent = 'BOT';
             content.appendChild(botTag);
         }
 
         // timestamp
         const timestamp = document.createElement('span');
         timestamp.classList.add('chatlog__timestamp');
-        timestamp.setAttribute('data-timestamp', message.createdTimestamp.toString());
+        timestamp.setAttribute('data-timestamp', message.createdAt.toString());
         timestamp.textContent = message.createdAt.toLocaleString(
             'en-us',
             staticTypes.timestampShort
         );
         timestamp.title = he.escape(
-            message.createdAt.toLocaleTimeString(
+            new Date(message.createdAt).toLocaleTimeString(
                 'en-us',
                 staticTypes.timestampLong
             )
@@ -295,7 +262,7 @@ async function generateTranscript<T extends ReturnTypes>(
                 messageContentContentMarkdownSpan.innerHTML = formatContent(
                     message.content,
                     channel,
-                    message.webhookId !== null
+                    message.webhookID !== null
                 );
                 messageContentContentMarkdown.appendChild(
                     messageContentContentMarkdownSpan
@@ -315,14 +282,14 @@ async function generateTranscript<T extends ReturnTypes>(
         }
 
         // message attachments
-        if (message.attachments && message.attachments.size > 0) {
+        if (message.attachments && message.attachments.length > 0) {
             for (const attachment of Array.from(
                 message.attachments.values()
             )) {
                 const attachmentsDiv = document.createElement('div');
                 attachmentsDiv.classList.add('chatlog__attachment');
 
-                const attachmentType = (attachment.name ?? 'unknown.png')
+                const attachmentType = (attachment.filename ?? 'unknown.png')
                     .split('.')
                     .pop()!
                     .toLowerCase();
@@ -338,14 +305,14 @@ async function generateTranscript<T extends ReturnTypes>(
                     );
                     attachmentImage.src =
                         images.get(attachment.id) ??
-                        attachment.proxyURL ??
+                        attachment.proxy_url ??
                         attachment.url;
-                    attachmentImage.alt = attachment.description
-                        ? `Image: ${attachment.description}`
+                    attachmentImage.alt = attachment.filename
+                        ? `Image: ${attachment.filename}`
                         : 'Image attachment';
                     attachmentImage.loading = 'lazy';
                     attachmentImage.title = `Image: ${
-                        attachment.name
+                        attachment.filename
                     } (${formatBytes(attachment.size)})`;
 
                     attachmentLink.appendChild(attachmentImage);
@@ -356,11 +323,11 @@ async function generateTranscript<T extends ReturnTypes>(
                         'chatlog__attachment-media'
                     );
                     attachmentVideo.src =
-                        attachment.proxyURL ?? attachment.url;
+                        attachment.proxy_url ?? attachment.url;
                     // attachmentVideo.alt = 'Video attachment';
                     attachmentVideo.controls = true;
                     attachmentVideo.title = `Video: ${
-                        attachment.name
+                        attachment.filename
                     } (${formatBytes(attachment.size)})`;
 
                     attachmentsDiv.appendChild(attachmentVideo);
@@ -370,11 +337,11 @@ async function generateTranscript<T extends ReturnTypes>(
                         'chatlog__attachment-media'
                     );
                     attachmentAudio.src =
-                        attachment.proxyURL ?? attachment.url;
+                        attachment.proxy_url ?? attachment.url;
                     // attachmentAudio.alt = 'Audio attachment';
                     attachmentAudio.controls = true;
                     attachmentAudio.title = `Audio: ${
-                        attachment.name
+                        attachment.filename
                     } (${formatBytes(attachment.size)})`;
 
                     attachmentsDiv.appendChild(attachmentAudio);
@@ -411,8 +378,8 @@ async function generateTranscript<T extends ReturnTypes>(
                     const attachmentGenericNameLink =
                         document.createElement('a');
                     attachmentGenericNameLink.href =
-                        attachment.proxyURL ?? attachment.url;
-                    attachmentGenericNameLink.textContent = attachment.name;
+                        attachment.proxy_url ?? attachment.url;
+                    attachmentGenericNameLink.textContent = attachment.filename;
 
                     attachmentGenericName.appendChild(
                         attachmentGenericNameLink
@@ -446,12 +413,12 @@ async function generateTranscript<T extends ReturnTypes>(
                 embedDiv.classList.add('chatlog__embed');
 
                 // embed color
-                if (embed.hexColor) {
+                if (embed.color) {
                     const embedColorPill = document.createElement('div');
                     embedColorPill.classList.add(
                         'chatlog__embed-color-pill'
                     );
-                    embedColorPill.style.backgroundColor = embed.hexColor;
+                    embedColorPill.style.backgroundColor = <string> intColorToHex(embed.color);
 
                     embedDiv.appendChild(embedColorPill);
                 }
@@ -472,13 +439,13 @@ async function generateTranscript<T extends ReturnTypes>(
                     const embedAuthor = document.createElement('div');
                     embedAuthor.classList.add('chatlog__embed-author');
 
-                    if (embed.author.iconURL) {
+                    if (embed.author.icon_url) {
                         const embedAuthorIcon =
                             document.createElement('img');
                         embedAuthorIcon.classList.add(
                             'chatlog__embed-author-icon'
                         );
-                        embedAuthorIcon.src = embed.author.iconURL;
+                        embedAuthorIcon.src = embed.author.icon_url;
                         embedAuthorIcon.alt = 'Author icon';
                         embedAuthorIcon.loading = 'lazy';
                         embedAuthorIcon.onerror = () =>
@@ -637,7 +604,7 @@ async function generateTranscript<T extends ReturnTypes>(
                 embedContent.appendChild(embedText);
 
                 // embed thumbnail
-                if (embed.thumbnail?.proxyURL ?? embed.thumbnail?.url) {
+                if (embed.thumbnail?.proxy_url ?? embed.thumbnail?.url) {
                     const embedThumbnail = document.createElement('div');
                     embedThumbnail.classList.add(
                         'chatlog__embed-thumbnail-container'
@@ -647,16 +614,16 @@ async function generateTranscript<T extends ReturnTypes>(
                     embedThumbnailLink.classList.add(
                         'chatlog__embed-thumbnail-link'
                     );
-                    embedThumbnailLink.href =
-                        embed.thumbnail.proxyURL ?? embed.thumbnail.url;
+                    embedThumbnailLink.href = <string>
+                        embed.thumbnail.proxy_url ?? embed.thumbnail.url;
 
                     const embedThumbnailImage =
                         document.createElement('img');
                     embedThumbnailImage.classList.add(
                         'chatlog__embed-thumbnail'
                     );
-                    embedThumbnailImage.src =
-                        embed.thumbnail.proxyURL ?? embed.thumbnail.url;
+                    embedThumbnailImage.src = <string>
+                        embed.thumbnail.proxy_url ?? embed.thumbnail.url;
                     embedThumbnailImage.alt = 'Thumbnail';
                     embedThumbnailImage.loading = 'lazy';
 
@@ -679,13 +646,13 @@ async function generateTranscript<T extends ReturnTypes>(
                     embedImageLink.classList.add(
                         'chatlog__embed-image-link'
                     );
-                    embedImageLink.href =
-                        embed.image.proxyURL ?? embed.image.url;
+                    embedImageLink.href = <string>
+                        embed.image.proxy_url ?? embed.image.url;
 
                     const embedImageImage = document.createElement('img');
                     embedImageImage.classList.add('chatlog__embed-image');
-                    embedImageImage.src =
-                        embed.image.proxyURL ?? embed.image.url;
+                    embedImageImage.src = <string>
+                        embed.image.proxy_url ?? embed.image.url;
                     embedImageImage.alt = 'Image';
                     embedImageImage.loading = 'lazy';
 
@@ -700,15 +667,15 @@ async function generateTranscript<T extends ReturnTypes>(
                     const embedFooter = document.createElement('div');
                     embedFooter.classList.add('chatlog__embed-footer');
 
-                    if (embed.footer.iconURL) {
+                    if (embed.footer.icon_url) {
                         const embedFooterIcon =
                             document.createElement('img');
                         embedFooterIcon.classList.add(
                             'chatlog__embed-footer-icon'
                         );
-                        embedFooterIcon.src =
-                            embed.footer.proxyIconURL ??
-                            embed.footer.iconURL;
+                        embedFooterIcon.src = <string>
+                            embed.footer.proxy_icon_url ??
+                            embed.footer.icon_url;
                         embedFooterIcon.alt = 'Footer icon';
                         embedFooterIcon.loading = 'lazy';
 
@@ -736,13 +703,11 @@ async function generateTranscript<T extends ReturnTypes>(
         }
 
         // reactions
-        if (message.reactions.cache.size > 0) {
+        if (Object.keys(message.reactions).length > 0) {
             const reactionsDiv = document.createElement('div');
             reactionsDiv.classList.add('chatlog__reactions');
 
-            for (const reaction of Array.from(
-                message.reactions.cache.values()
-            )) {
+            for (const reaction in message.reactions) {
                 /*
                 <div class="chatlog__reaction" title="upside_down"> - reactionContainer
                     <img class="emoji emoji--small" alt="🙃" src="https://twemoji.maxcdn.com/2/svg/1f643.svg" loading="lazy"> - reactionEmoji
@@ -753,30 +718,26 @@ async function generateTranscript<T extends ReturnTypes>(
                 const reactionContainer = document.createElement('div');
                 reactionContainer.classList.add('chatlog__reaction');
                 reactionContainer.title =
-                    reaction.emoji.name ?? reaction.emoji.id ?? 'Unknown';
+                    (reaction.includes(':') ? reaction.split(':')[1] : reaction) ?? 'Unknown';
 
                 const reactionEmoji = document.createElement('img');
                 reactionEmoji.classList.add('emoji', 'emoji--small');
                 reactionEmoji.alt =
-                    reaction.emoji.name ??
-                    reaction.emoji.id ??
-                    reaction.emoji.identifier;
-                if (reaction.emoji.url) {
-                    reactionEmoji.src = reaction.emoji.url;
-                } else if (reaction.emoji.name) {
+                    reaction.includes(':') ? reaction.split(':')[1] : reaction
+                if (!reaction.includes(':')) {
                     // console.log(reaction.emoji.identifier, reaction.emoji.name, reaction.emoji.id);
-                    reactionEmoji.src = emoji(reaction.emoji.name)[0].url;
+                    reactionEmoji.src = emoji(reaction.split(':')[0])[0].url;
                 } else {
                     // reactionEmoji.src = `https://twemoji.maxcdn.com/2/svg/${reaction.emoji.id}.svg`;
                     console.warn(
                         `[discord-html-transcripts] [WARN] Failed to parse reaction emoji:`,
-                        reaction.emoji
+                        reaction
                     );
                 }
 
                 const reactionCount = document.createElement('span');
                 reactionCount.classList.add('chatlog__reaction-count');
-                reactionCount.textContent = reaction.count.toString();
+                reactionCount.textContent = message.reactions[reaction].count.toString();
 
                 reactionContainer.appendChild(reactionEmoji);
                 reactionContainer.appendChild(reactionCount);
@@ -802,35 +763,17 @@ async function generateTranscript<T extends ReturnTypes>(
         );
     }
 
-    if (opts.returnType === 'string') return serialized as ObjectType<T>;
-
-    if (opts.returnType === 'buffer')
-        return Buffer.from(serialized) as ObjectType<T>;
-
-    if (opts.returnType === 'attachment')
-        return new Attachment(Buffer.from(serialized)).setName(
-            opts.fileName ?? 'transcript.html'
-        ) as ObjectType<T>;
-
-    // should never get here.
-    return serialized as ObjectType<T>;
+    return {
+      name: opts.fileName,
+      file: Buffer.from(serialized)
+    }
 }
 
 const languages = hljs.listLanguages();
 
-type ChannelsCtxV13 =
-    | discordv13.NewsChannel
-    | discordv13.TextChannel
-    | discordv13.ThreadChannel;
-
-type ChannelsCtxV14 =
-    | discordv14.NewsChannel
-    | discordv14.TextChannel
-    | discordv14.ThreadChannel;
-
 function formatContent(
     content: string,
-    context: ChannelsCtxV13 | ChannelsCtxV14,
+    context: userDiscord.TextChannel,
     allowExtra = false,
     replyStyle = false,
     purify = he.escape
@@ -903,36 +846,28 @@ function formatContent(
         .replace(/\&lt\;@!*&*([0-9]{16,20})\&gt\;/g, (user: string) => {
             // matches @!<id> or @<id>
             const userId = (user.match(/[0-9]{16,20}/) ?? [''])[0];
-            const userInGuild = isDJSv14
-                ? (<ChannelsCtxV14>context).client?.users?.resolve(userId)
-                : (<ChannelsCtxV13>context).client?.users?.resolve(userId);
+            const userInGuild = (<userDiscord.TextChannel>context).client?.users?.get(
+              userId.match(/<@!?(\d+)>/)![1]
+            )
 
             return `<span class="mention" title="${
-                userInGuild?.tag ?? userId
+                (userInGuild?.username + '#' + userInGuild?.discriminator) ?? userId
             }">@${userInGuild?.username ?? 'Unknown User'}</span>`;
         })
         .replace(/\&lt\;#!*&*([0-9]{16,20})\&gt\;/g, (channel: string) => {
             // matches #!<id> or #<id>
             const channelId = (channel.match(/[0-9]{16,20}/) ?? [''])[0];
-            const channelInGuild = isDJSv14
-                ? (<ChannelsCtxV14>context).guild.channels.resolve(channelId)
-                : (<ChannelsCtxV13>context).guild.channels.resolve(channelId);
+            const channelInGuild = (<userDiscord.GuildChannel>context).guild.channels?.get(
+              channelId.match(/<#!?(\d+)>/)![1]
+            )
 
             let isText = false;
             let isVoice = false;
 
             if (channelInGuild !== null) {
-                isText = isDJSv14
-                    ? (<discordv14.GuildBasedChannel>(
-                          channelInGuild
-                      ))?.isTextBased()
-                    : (<discordv13.GuildBasedChannel>channelInGuild)?.isText();
+                isText = channelInGuild?.type === userDiscord.Constants.ChannelTypes.GUILD_TEXT
 
-                isVoice = isDJSv14
-                    ? (<discordv14.GuildBasedChannel>(
-                          channelInGuild
-                      ))?.isVoiceBased()
-                    : (<discordv13.GuildBasedChannel>channelInGuild)?.isVoice();
+                isVoice = channelInGuild?.type === userDiscord.Constants.ChannelTypes.GUILD_VOICE
             }
 
             const pre = channelInGuild
@@ -950,9 +885,9 @@ function formatContent(
         .replace(/\&lt\;\@\&amp\;([0-9]{16,20})\&gt\;/g, (channel: string) => {
             // matches &!<id> or &<id>
             const roleId = (channel.match(/[0-9]{16,20}/) ?? [''])[0];
-            const roleInGuild = isDJSv14
-                ? (<ChannelsCtxV14>context).guild.roles.resolve(roleId)
-                : (<ChannelsCtxV13>context).guild.roles.resolve(roleId);
+            const roleInGuild = (<userDiscord.GuildChannel>context).guild.roles?.get(
+              roleId.match(/<@&!?(\d+)>/)![1]
+            )
 
             if (!roleInGuild)
                 return `<span class="mention" title="${roleId}">Unknown Role</span>`;
@@ -969,7 +904,7 @@ function formatContent(
             const rgba = `rgba(${r}, ${g}, ${b}, ${a})`;
 
             return `<span class="mention" style="color: ${
-                roleInGuild.hexColor
+              intColorToHex(roleInGuild.color)
             }; background-color: ${rgba};" title="${
                 roleInGuild?.name ?? roleId
             }">@${roleInGuild?.name ?? 'Unknown Role'}</span>`;

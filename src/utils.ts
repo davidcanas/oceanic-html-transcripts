@@ -39,6 +39,11 @@ export const charCodeUTF32 = (char: string): number => {
     );
 };
 
+export const intColorToHex = (color: number | null | undefined): string | undefined => {
+    if (!color) return;
+    return `#${color.toString(16).padStart(6, '0')}`;
+};
+
 // i think this is cleaner than writing "variable as unknown as type"
 // used when i cant skip using "as unknown"
 export function castToType<T>(type: any) {
