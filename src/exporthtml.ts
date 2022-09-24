@@ -44,7 +44,7 @@ async function generateTranscript<T extends ReturnTypes>(
         link.setAttribute('rel', 'stylesheet');
         link.setAttribute(
             'href',
-            'https://cdn.jsdelivr.net/npm/eris-html-transcripts@' +
+            'https://cdn.jsdelivr.net/npm/discord-html-transcripts@' +
                 (version ?? 'latest') +
                 '/dist/template.css'
         );
@@ -846,9 +846,7 @@ function formatContent(
         .replace(/\&lt\;@!*&*([0-9]{16,20})\&gt\;/g, (user: string) => {
             // matches @!<id> or @<id>
             const userId = (user.match(/[0-9]{16,20}/) ?? [''])[0];
-            const userInGuild = (<userDiscord.TextChannel>context).client?.users?.get(
-              userId.match(/<@!?(\d+)>/)![1]
-            )
+            const userInGuild = (<userDiscord.TextChannel>context).client?.users?.get(userId)
 
             return `<span class="mention" title="${
                 (userInGuild?.username + '#' + userInGuild?.discriminator) ?? userId
@@ -857,9 +855,7 @@ function formatContent(
         .replace(/\&lt\;#!*&*([0-9]{16,20})\&gt\;/g, (channel: string) => {
             // matches #!<id> or #<id>
             const channelId = (channel.match(/[0-9]{16,20}/) ?? [''])[0];
-            const channelInGuild = (<userDiscord.GuildChannel>context).guild.channels?.get(
-              channelId.match(/<#!?(\d+)>/)![1]
-            )
+            const channelInGuild = (<userDiscord.GuildChannel>context).guild.channels?.get(channelId)
 
             let isText = false;
             let isVoice = false;
@@ -885,9 +881,7 @@ function formatContent(
         .replace(/\&lt\;\@\&amp\;([0-9]{16,20})\&gt\;/g, (channel: string) => {
             // matches &!<id> or &<id>
             const roleId = (channel.match(/[0-9]{16,20}/) ?? [''])[0];
-            const roleInGuild = (<userDiscord.GuildChannel>context).guild.roles?.get(
-              roleId.match(/<@&!?(\d+)>/)![1]
-            )
+            const roleInGuild = (<userDiscord.GuildChannel>context).guild.roles?.get(roleId)
 
             if (!roleInGuild)
                 return `<span class="mention" title="${roleId}">Unknown Role</span>`;
