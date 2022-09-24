@@ -1,18 +1,19 @@
-import * as discord from 'discord.js-13';
+import * as discord from 'eris';
 import { createTranscript } from '../src';
 
-const client = new discord.Client({
+const client = new discord.Client(process.env.TOKEN!, {
     intents: [
-        discord.Intents.FLAGS.GUILDS,
-        discord.Intents.FLAGS.GUILD_MESSAGES,
+        discord.Constants.Intents.guilds,
+        discord.Constants.Intents.guildMessages,
     ],
 });
 
 client.on('ready', async () => {
     /** @type {discord.TextChannel} */
-    const channel = await client.channels.fetch(process.env.CHANNEL!);
+    const channel = await client.getRESTChannel(process.env.CHANNEL!);
 
-    if (!channel || !channel.isText() || channel.type === 'DM') {
+    // @ts-expect-error
+    if (!channel || channel.type !== discord.Constants.ChannelTypes.GUILD_TEXT || channel.type === discord.Constants.ChannelTypes.DM) {
         console.error('Invalid channel provided.');
         process.exit(1);
     }
@@ -22,12 +23,11 @@ client.on('ready', async () => {
         useCDN: false,
     });
 
-    await channel.send({
-        files: [attachment],
+    await channel.createMessage({}, {
+      name: <string> attachment.name,
+      file: <Buffer> attachment.file
     });
 
-    client.destroy();
+    client.disconnect({ reconnect: false });
     process.exit(0);
 });
-
-client.login(process.env.TOKEN!);
