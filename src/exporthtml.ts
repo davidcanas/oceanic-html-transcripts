@@ -44,7 +44,9 @@ async function generateTranscript<T extends ReturnTypes>(
         link.setAttribute('rel', 'stylesheet');
         link.setAttribute(
             'href',
-            'template.css'
+            'https://cdn.jsdelivr.net/npm/discord-html-transcripts@' + // later change discord to eris
+                (version ?? 'latest') +
+                '/dist/template.css'
         );
         document.head.appendChild(link);
     }
