@@ -9,7 +9,7 @@ export const DummyUser = {
     name: 'Unknown User',
     username: 'Unknown User',
     accentColor: '#FFFFFF',
-    avatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png',
+    dynamicAvatarURL: (format: string) => `https://cdn.discordapp.com/embed/avatars/0.${format}`,
 };
 
 export const LanguageAliases = {

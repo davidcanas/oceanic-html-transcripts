@@ -135,7 +135,7 @@ async function generateTranscript<T extends ReturnTypes>(
 
             reference.innerHTML = (
                 `<img class="chatlog__reference-avatar" src="${
-                        author.avatarURL ?? staticTypes.defaultPFP
+                        (author instanceof userDiscord.Member ? author.user : author).dynamicAvatarURL('png') ?? staticTypes.defaultPFP
                     }" alt="Avatar" loading="lazy">
                 <span class="chatlog__reference-name" title="${author.username.replace(
                     /"/g,
@@ -179,7 +179,7 @@ async function generateTranscript<T extends ReturnTypes>(
 
         const authorAvatar = document.createElement('img');
         authorAvatar.classList.add('chatlog__author-avatar');
-        authorAvatar.src = author.avatarURL ?? staticTypes.defaultPFP;
+        authorAvatar.src = author.dynamicAvatarURL('png') ?? staticTypes.defaultPFP;
         authorAvatar.alt = 'Avatar';
         authorAvatar.loading = 'lazy';
 
