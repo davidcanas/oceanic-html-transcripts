@@ -131,11 +131,11 @@ async function generateTranscript<T extends ReturnTypes>(
                             (m) => m.id === message.referencedMessage?.id
                         );
             const author =
-                referencedMessage?.member ?? staticTypes.DummyUser;
+                referencedMessage?.member?.user ?? staticTypes.DummyUser;
 
             reference.innerHTML = (
                 `<img class="chatlog__reference-avatar" src="${
-                        (author instanceof userDiscord.Member ? author.user : author).dynamicAvatarURL('png') ?? staticTypes.defaultPFP
+                        author.dynamicAvatarURL('png') ?? staticTypes.defaultPFP
                     }" alt="Avatar" loading="lazy">
                 <span class="chatlog__reference-name" title="${author.username.replace(
                     /"/g,
