@@ -44,9 +44,7 @@ async function generateTranscript<T extends ReturnTypes>(
         link.setAttribute('rel', 'stylesheet');
         link.setAttribute(
             'href',
-            'https://cdn.jsdelivr.net/npm/discord-html-transcripts@' +
-                (version ?? 'latest') +
-                '/dist/template.css'
+            '/dist/template.css'
         );
         document.head.appendChild(link);
     }
