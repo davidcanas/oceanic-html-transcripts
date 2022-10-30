@@ -36,7 +36,7 @@ channel.createMessage(
 ### Or if you prefer, you can pass in your own messages.
 ```js
 const discordTranscripts = require('eris-html-transcripts');
-// or (if using typescript) import * as discordTranscripts from 'discord-html-transcripts';
+// or (if using typescript) import * as discordTranscripts from 'eris-html-transcripts';
 
 const messages = someWayToGetMessages(); // Must be Collection<string, Message> or Message[]
 const channel  = someWayToGetChannel();  // Used for ticket name, guild icon, and guild name
