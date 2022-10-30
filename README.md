@@ -24,9 +24,13 @@ const channel = message.channel; // or however you get your TextChannel
 // Must be awaited
 const attachment = await discordTranscripts.createTranscript(channel);
 
-channel.send({
-    files: [attachment]
-});
+channel.createMessage(
+  {
+    // content: '',
+    // embeds: []
+  },
+  attachment
+);
 ```
 
 ### Or if you prefer, you can pass in your own messages.
@@ -40,9 +44,13 @@ const channel  = someWayToGetChannel();  // Used for ticket name, guild icon, an
 // Must be awaited
 const attachment = await discordTranscripts.generateFromMessages(messages, channel);
 
-channel.send({
-    files: [attachment]
-});
+channel.createMessage(
+  {
+    // content: '',
+    // embeds: []
+  },
+  attachment
+);
 ```
 
 ## ⚙️ Configuration
